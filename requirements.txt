@@ -1,0 +1,10 @@
+numpy
+scipy
+scikit-learn
+imbalanced-learn
+librosa
+soundfile
+scikit-image
+optuna
+matplotlib
+pytest
