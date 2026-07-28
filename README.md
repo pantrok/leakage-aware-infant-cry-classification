@@ -93,21 +93,6 @@ No local GPU? See [`notebooks/colab_run.ipynb`](notebooks/colab_run.ipynb)
 for the recommended way to run this from Google Colab with the dataset on
 Google Drive.
 
-## Citation
-
-DOI, volume, and page numbers are not yet available at the time of writing
-this README — update the placeholders below once the paper is published.
-
-```bibtex
-@article{ramosaguilar2026leakage,
-  title   = {Leakage-aware Evaluation of Infant Cry Classification: A Robust Comparison of Acoustic Feature Representations},
-  author  = {Ramos-Aguilar, Ricardo and Olvera-L{\'o}pez, J. Arturo and S{\'a}nchez-Ruiz, Daniel and Ramos-Aguilar, Eric},
-  journal = {Pattern Analysis and Applications},
-  year    = {2026},
-  note    = {DOI, volume and pages to be added upon publication}
-}
-```
-
 ## License
 
 Code is released under the [MIT License](LICENSE). This license covers the
