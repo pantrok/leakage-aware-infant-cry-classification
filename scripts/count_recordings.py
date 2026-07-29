@@ -13,6 +13,9 @@ from src.audio_preprocessing import collect_samples
 
 def _recording_id(filepath: str) -> str:
     stem = Path(filepath).stem
+    m = re.match(r'^(\d{4})\d{6}$', stem)
+    if m:
+        return m.group(1)
     cleaned = re.sub(r'[_\-]\d+$', '', stem)
     return cleaned if cleaned != stem else stem
 

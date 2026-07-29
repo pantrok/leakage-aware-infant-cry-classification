@@ -135,17 +135,28 @@ CI_ALPHA    = 0.05   # nivel de significancia (IC 95 %)
 
 def _recording_id(filepath: str) -> str:
     """
-    Extrae un identificador de grabación desde el nombre de archivo.
-    Estrategia: eliminar el sufijo numérico final (p.ej. _001, -02) del
-    stem, asumiendo que segmentos del mismo archivo comparten prefijo.
+    Extrae el ID de grabación desde el nombre de archivo.
 
-    Ejemplos:
-      cry_asphyxia_01_003.wav  →  cry_asphyxia_01
-      baby001_seg04.wav        →  baby001_seg   (degenera a 1 seg/grupo
-                                   si no hay patrón claro — se advierte)
-      baby001.wav              →  baby001  (source=full, 1 archivo = 1 grupo)
+    Esquema confirmado para Baby Chillanto (ver DIAGNOSTICO_RECORDING_ID.md,
+    validado con evidencia dura: logs de procesamiento de 2002 encontrados
+    en Data/1s_deaf/, coincidencia exacta línea-por-línea/archivo-por-archivo
+    para los 6 prefijos observados en esa clase): nombre de archivo de 10
+    dígitos PPPPSSSCCC, donde:
+      PPPP = ID de grabación (4 dígitos)
+      SSS  = contador de segmento dentro de la grabación (3 dígitos,
+             reinicia en 001 por cada grabación nueva)
+      CCC  = código constante por clase (3 dígitos)
+
+    Ejemplo: 0025001010.wav → grabación "0025" (clase deaf, segmento 001).
+
+    Fallback: si un archivo no sigue el patrón de 10 dígitos (por ejemplo,
+    datos de otra fuente añadidos en el futuro), se usa la heurística
+    anterior basada en sufijo con separador, para no romper en silencio.
     """
     stem = Path(filepath).stem
+    m = re.match(r'^(\d{4})\d{6}$', stem)
+    if m:
+        return m.group(1)
     cleaned = re.sub(r'[_\-]\d+$', '', stem)
     return cleaned if cleaned != stem else stem
 
