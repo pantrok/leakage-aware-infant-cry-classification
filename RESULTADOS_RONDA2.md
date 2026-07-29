@@ -134,7 +134,7 @@ feature_set=E, classifier=SVM-RBF`; no se volvió a correr nada para esto.)
 
 ## Commit
 
-- Commit: `<pendiente de completar tras el commit — ver mensaje de después de este reporte>`
+- Commit: `fc938a4` ("Round 2 review fixes: familywise Bonferroni, pinned deps, stale refs")
 - Confirmación de que no hay menciones de IA en el diff ni en los
   mensajes de commit: verificado con
   `grep -rilE "claude|anthropic|ai-generated|ai-assisted" -- scripts/ src/ tests/ requirements.txt results/`
