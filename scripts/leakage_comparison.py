@@ -63,6 +63,7 @@ Uso:
 
 import argparse
 import csv
+import pickle
 import re
 import sys
 import time
@@ -992,7 +993,7 @@ def _plot_roc_curves(all_result_rows: list[dict], plot_dir: str):
         "S-1s": {"ls": "--", "alpha": 0.75},
         "G-1s": {"ls": "-",  "alpha": 1.00},
     }
-    cmap = plt.cm.get_cmap("tab10")
+    cmap = matplotlib.colormaps["tab10"]
 
     for fs_key in ["B", "C", "D", "E"]:
         fs_rows = [r for r in bin_rows if r["feature_set"] == fs_key]
@@ -1132,6 +1133,61 @@ def _save_csv(rows: list[dict], path: str):
 
 
 # ---------------------------------------------------------------------------
+# Checkpoint / resume (una sesión de Colab puede cortarse a media corrida)
+# ---------------------------------------------------------------------------
+
+# Solo los parámetros que afectan el cómputo numérico de un (mode, feature_set)
+# dado -- deliberadamente NO incluye feature_sets/modes/conditions/classifiers,
+# para poder ampliar el alcance entre sesiones (ej. correr B C primero y D E
+# después) sin invalidar lo ya calculado.
+_CHECKPOINT_CONFIG_KEYS = [
+    "data_dir", "duration_s", "fs_target", "no_bandpass", "low_hz", "high_hz",
+    "n_mels", "n_fft", "k", "sub_window", "n_mfcc", "f0_fmin", "f0_fmax",
+    "n_splits", "balanced", "n_seeds", "seed_base", "fv_n_components", "k_best_d",
+]
+
+
+def _checkpoint_config(args) -> dict:
+    return {key: getattr(args, key) for key in _CHECKPOINT_CONFIG_KEYS}
+
+
+def _load_checkpoint(path: Path, expected_config: dict):
+    """Carga un checkpoint previo si existe y su config coincide con la corrida
+    actual. Regresa None si no hay checkpoint o si la config no coincide
+    (evita mezclar resultados calculados con parámetros distintos)."""
+    if not path.exists():
+        return None
+    try:
+        with path.open("rb") as f:
+            ckpt = pickle.load(f)
+    except Exception as e:
+        print(f"[AVISO] No se pudo leer el checkpoint {path}: {e} -- se ignora.")
+        return None
+    if ckpt.get("config") != expected_config:
+        print(f"[AVISO] Checkpoint en {path} tiene una configuración distinta a "
+              f"la corrida actual (--data_dir, --n_seeds, --n_splits, etc.) "
+              f"-- se ignora. Usa --fresh para no ver este aviso, o borra el "
+              f"archivo si el checkpoint ya no sirve.")
+        return None
+    return ckpt
+
+
+def _save_checkpoint(path: Path, config: dict, done: set,
+                      all_results: list[dict], all_stats: list[dict]):
+    """Guarda el progreso a disco de forma casi-atómica (escribe a un .tmp y
+    renombra), para no dejar un checkpoint corrupto si el proceso muere
+    exactamente durante la escritura."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("wb") as f:
+        pickle.dump(
+            {"config": config, "done": done, "all_results": all_results, "all_stats": all_stats},
+            f,
+        )
+    tmp_path.replace(path)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1176,6 +1232,12 @@ def main():
     parser.add_argument("--csv_stats",   default="leakage_stats.csv")
     parser.add_argument("--plot_dir",    default="leakage_plots",
                         help="Carpeta donde guardar las figuras PNG (CM y ROC)")
+    parser.add_argument("--checkpoint", default=None,
+                        help="Ruta al archivo de checkpoint para retomar la corrida si se "
+                             "corta a media ejecución (default: junto a --csv_results, "
+                             "'.leakage_checkpoint.pkl')")
+    parser.add_argument("--fresh", action="store_true",
+                        help="Ignora cualquier checkpoint existente y empieza de cero")
     args = parser.parse_args()
 
     report_backend()
@@ -1191,7 +1253,21 @@ def main():
     # Filtrar condiciones seleccionadas
     selected_conditions = [c for c in SPLIT_CONDITIONS if c[0] in args.conditions]
 
+    checkpoint_path = (Path(args.checkpoint) if args.checkpoint
+                        else Path(args.csv_results).parent / ".leakage_checkpoint.pkl")
+    checkpoint_config = _checkpoint_config(args)
+
+    done: set = set()
     all_results, all_stats = [], []
+    if not args.fresh:
+        ckpt = _load_checkpoint(checkpoint_path, checkpoint_config)
+        if ckpt is not None:
+            done = ckpt["done"]
+            all_results = ckpt["all_results"]
+            all_stats = ckpt["all_stats"]
+            if done:
+                print(f"[RESUME] Checkpoint encontrado en {checkpoint_path}: "
+                      f"{len(done)} combinación(es) ya completada(s) -- {sorted(done)}")
 
     try:
         for mode in args.modes:
@@ -1205,6 +1281,11 @@ def main():
             print(f"{'#'*70}")
 
             for fs_key in args.feature_sets:
+                if (mode, fs_key) in done:
+                    print(f"\n  ── Conjunto {fs_key}: {FEATURE_SETS[fs_key]} ── "
+                          f"[SKIP, ya completado en una corrida anterior]")
+                    continue
+
                 print(f"\n  ── Conjunto {fs_key}: {FEATURE_SETS[fs_key]} ──")
                 t0 = time.time()
 
@@ -1234,13 +1315,28 @@ def main():
                         conditions=selected_conditions,
                         classifiers_to_run=args.classifiers,
                     )
+                    combo_ok = True
                 except Exception as exc:
                     print(f"[ERROR] Fallo en {mode}/{fs_key}: {exc}")
                     result_rows, stat_rows = [], []
+                    combo_ok = False
 
                 all_results.extend(result_rows)
                 all_stats.extend(stat_rows)
+                if combo_ok:
+                    done.add((mode, fs_key))
+                else:
+                    print(f"  [AVISO] {mode}/{fs_key} no se marca como completado -- "
+                          f"se reintentará en el próximo resume.")
                 print(f"  Completado en {time.time()-t0:.1f}s")
+
+                # Checkpoint incremental: no esperar a que termine todo el
+                # grid para no perder progreso si la sesión se corta aquí.
+                _save_checkpoint(checkpoint_path, checkpoint_config, done, all_results, all_stats)
+                csv_rows = [{k: v for k, v in r.items() if not k.startswith("_")}
+                            for r in all_results]
+                _save_csv(csv_rows,  args.csv_results)
+                _save_csv(all_stats, args.csv_stats)
 
             # Imprimir resultados del modo
             _print_block(
@@ -1275,6 +1371,11 @@ def main():
                     for r in all_results]
         _save_csv(csv_rows,    args.csv_results)
         _save_csv(all_stats,   args.csv_stats)
+        requested = {(m, fs) for m in args.modes for fs in args.feature_sets}
+        if requested <= done:
+            print(f"\n[INFO] Corrida completa. El checkpoint en {checkpoint_path} "
+                  f"se deja tal cual (no se borra) -- usa --fresh para ignorarlo "
+                  f"en una corrida futura, o bórralo a mano.")
 
 
 if __name__ == "__main__":

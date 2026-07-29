@@ -15,3 +15,5 @@ __pycache__/
 # Local run artifacts (anything generated outside results/, which is
 # the curated, versioned set of outputs cited in the paper)
 *.log
+.leakage_checkpoint.pkl
+.leakage_checkpoint.pkl.tmp
