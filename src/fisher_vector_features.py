@@ -34,8 +34,9 @@ Pasos:
 
 CRÍTICO para evitar fuga de datos: el GMM debe ajustarse SOLO con datos
 de entrenamiento. fit_fisher_gmm() ajusta el GMM; encode_fisher_vector()
-codifica un audio dado un GMM ya ajustado. El pipeline de comparación
-(compare_feature_sets.py) ajusta el GMM dentro de cada fold de CV.
+codifica un audio dado un GMM ya ajustado. Los pipelines de este repo
+(optuna_search.py, optuna_binary.py, leakage_comparison.py) ajustan el
+GMM dentro de cada fold de CV.
 """
 
 from dataclasses import dataclass

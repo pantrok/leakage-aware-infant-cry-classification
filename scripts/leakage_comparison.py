@@ -1006,7 +1006,7 @@ def _print_stats(stat_rows: list[dict]):
         return
     print(f"\n{'='*100}")
     print("  PRUEBAS DE SIGNIFICANCIA ESTADÍSTICA (Wilcoxon signed-rank + Corrección Bonferroni)")
-    print(f"  α = {CI_ALPHA}  |  M = 3 comparaciones por (modo × conjunto × clasificador)")
+    print(f"  α = {CI_ALPHA}  |  M = {len(stat_rows)} comparaciones (familywise, corrección sobre el total)")
     print(f"{'='*100}")
     hdr = (f"  {'Modo':<12}{'Set':<5}{'Clasificador':<16}"
            f"{'Cond_A':<8}{'Cond_B':<8}{'p_raw':>9}{'p_bonf':>9}"
@@ -1193,6 +1193,18 @@ def main():
                 [r for r in all_results if r["mode"] == mode],
                 binary=(mode == "binary"),
             )
+
+        # Corrección de Bonferroni familywise sobre el total real de pruebas
+        m_total = len(all_stats)
+        for row in all_stats:
+            p_raw = row["p_raw"]
+            if p_raw != p_raw:  # NaN
+                row["p_bonf"] = float("nan")
+                row["significant"] = False
+                continue
+            p_bonf = min(1.0, p_raw * m_total)
+            row["p_bonf"] = round(p_bonf, 6)
+            row["significant"] = p_bonf < 0.05
 
         # Tablas de significancia y resumen de inflación
         _print_stats(all_stats)

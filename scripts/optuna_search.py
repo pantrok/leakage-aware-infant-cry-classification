@@ -2,8 +2,8 @@
 Optimización bayesiana de hiperparámetros con Optuna (TPE + ASHA)
 para clasificación de llanto de bebé — comparando 4 conjuntos de características
 =================================================================================
-Evalúa las mismas 4 combinaciones de características que compare_feature_sets.py,
-pero en vez de hiperparámetros fijos usa búsqueda bayesiana (TPE) con poda ASHA:
+Evalúa 4 combinaciones de características con búsqueda bayesiana (TPE) y
+poda ASHA en vez de hiperparámetros fijos:
 
   B) comp+EEFGabor                    — complementarias + Gabor, SIN FOSP
   C) FOSP+comp+EEFGabor (sin reduc.)  — todas las características, sin SelectKBest
