@@ -16,8 +16,11 @@ la inflación de métricas por fuga de datos (data leakage) en la literatura:
            simultáneamente → estimación más realista del rendimiento.
 
 Los grupos se detectan automáticamente desde los nombres de archivo:
-  se elimina el sufijo numérico final (p.ej. _001, -02) del stem asumiendo
-  que segmentos del mismo audio original comparten prefijo.
+  esquema confirmado de Baby Chillanto, nombre de 10 dígitos PPPPSSSCCC
+  (PPPP = ID de grabación, SSS = contador de segmento, CCC = código de
+  clase) -- ver _recording_id() y DIAGNOSTICO_RECORDING_ID.md para la
+  evidencia. Fallback a la heurística de sufijo con separador para
+  nombres que no matcheen ese esquema.
 
 Para cada condición evalúa:
   - Clasificación MULTICLASE : 5 clases originales
@@ -34,7 +37,8 @@ Con los 4 conjuntos de características:
 Análisis estadístico:
   - Intervalos de confianza al 95 % sobre N semillas de CV
   - Prueba de Wilcoxon signed-rank pareada por fold (S-1s vs G-1s)
-  - Corrección de Bonferroni (M = 1 par de condiciones por bloque)
+  - Corrección de Bonferroni familywise sobre el total real de pruebas
+    (aplicada en main(), no por bloque)
   - Tamaño del efecto: Cohen's d
 
 Hiperparámetros: fijos y razonables (mismos que pipeline.py).
@@ -81,11 +85,11 @@ from sklearn.metrics import (
     roc_auc_score, confusion_matrix,
 )
 from sklearn.model_selection import StratifiedKFold, GroupKFold
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier as skKNN
+from sklearn.neural_network import MLPClassifier as skMLP
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC as skSVC
+from sklearn.ensemble import RandomForestClassifier as skRF
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.over_sampling import SMOTE
 
@@ -99,6 +103,18 @@ from src.fosp_energy_kmeans import (
 from src.complementary_features import extract_complementary_features
 from src.eefgabor_features import extract_eefgabor_from_audio
 from src.fisher_vector_features import fit_fisher_gmm, encode_fisher_vector
+from src.gpu_classifiers import (
+    GPU_AVAILABLE, TORCH_CUDA_AVAILABLE, _CUDA_RUNTIME_BROKEN,
+    TorchMLPClassifier, report_backend,
+)
+
+try:
+    from cuml.svm import SVC as cuSVC
+    from cuml.neighbors import KNeighborsClassifier as cuKNN
+    from cuml.ensemble import RandomForestClassifier as cuRF
+    _CUML_OK = GPU_AVAILABLE
+except ImportError:
+    _CUML_OK = False
 
 warnings.filterwarnings("ignore")
 
@@ -284,17 +300,43 @@ def _extract_vector_features(signals, fs, n_mels, n_fft, k, sub_window,
 # ---------------------------------------------------------------------------
 
 def _make_classifiers(balanced: bool, random_state: int) -> dict:
+    """
+    Construye los 6 clasificadores con hiperparámetros fijos, usando
+    GPU (cuML/PyTorch) si está disponible, con el mismo fallback a
+    sklearn/CPU y el mismo mapeo de parámetros por clasificador que ya
+    usan optuna_search.py / optuna_binary.py vía src/gpu_classifiers.py
+    -- ver el docstring de ese módulo para el porqué del fallback y el
+    aviso sobre cuML no ser binariamente idéntico a sklearn.
+    """
     cw = "balanced" if balanced else None
+
+    if TORCH_CUDA_AVAILABLE and not _CUDA_RUNTIME_BROKEN[0]:
+        mlp = TorchMLPClassifier(hidden1=64, hidden2=32, max_iter=2000,
+                                  random_state=random_state, class_weight=cw)
+    else:
+        mlp = skMLP(hidden_layer_sizes=(64, 32), max_iter=2000, random_state=random_state)
+
+    if _CUML_OK:
+        svm_lineal = cuSVC(kernel="linear", class_weight=cw)
+        svm_rbf = cuSVC(kernel="rbf", class_weight=cw)
+        svm_poly = cuSVC(kernel="poly", degree=3, class_weight=cw)
+        knn = cuKNN(n_neighbors=5)
+        rf = cuRF(n_estimators=200, max_depth=15, random_state=random_state)
+    else:
+        svm_lineal = skSVC(kernel="linear", class_weight=cw, probability=True)
+        svm_rbf = skSVC(kernel="rbf", class_weight=cw, probability=True)
+        svm_poly = skSVC(kernel="poly", degree=3, class_weight=cw, probability=True)
+        knn = skKNN(n_neighbors=5)
+        rf = skRF(n_estimators=200, max_depth=15, class_weight=cw,
+                  random_state=random_state, n_jobs=-1)
+
     return {
-        "MLP":           MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=2000,
-                                        random_state=random_state),
-        "SVM-lineal":    SVC(kernel="linear", class_weight=cw, probability=True),
-        "SVM-RBF":       SVC(kernel="rbf",    class_weight=cw, probability=True),
-        "SVM-polinomial":SVC(kernel="poly", degree=3, class_weight=cw, probability=True),
-        "kNN":           KNeighborsClassifier(n_neighbors=5),
-        "RandomForest":  RandomForestClassifier(n_estimators=200, max_depth=15,
-                                                class_weight=cw,
-                                                random_state=random_state, n_jobs=-1),
+        "MLP":            mlp,
+        "SVM-lineal":     svm_lineal,
+        "SVM-RBF":        svm_rbf,
+        "SVM-polinomial": svm_poly,
+        "kNN":            knn,
+        "RandomForest":   rf,
     }
 
 
@@ -1135,6 +1177,8 @@ def main():
     parser.add_argument("--plot_dir",    default="leakage_plots",
                         help="Carpeta donde guardar las figuras PNG (CM y ROC)")
     args = parser.parse_args()
+
+    report_backend()
 
     if not args.skip_analysis:
         print(f"\nAnalizando dataset (carpetas 1s_X)...")
