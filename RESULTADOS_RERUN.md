@@ -1,5 +1,27 @@
 # Resultados de la re-ejecución con recording_id corregido
 
+## Actualización — decisión de GPU tomada, código listo
+
+Daniel eligió la opción 2 (wiring GPU real) para el bloqueo que dejé
+abajo. Ya está hecho y pusheado, commit `aab912e`:
+`scripts/leakage_comparison.py` ahora construye sus 6 clasificadores vía
+`src/gpu_classifiers.py` (cuML/RAPIDS para SVM/kNN/RandomForest,
+PyTorch+CUDA para el MLP), con el mismo fallback automático a
+sklearn/CPU que ya usan `optuna_search.py`/`optuna_binary.py` cuando no
+hay GPU. Verificado en esta máquina (sin GPU/cuML) que el fallback CPU
+sigue devolviendo exactamente las mismas clases de sklearn que antes, y
+que `pytest tests/` sigue en 2/2.
+
+`notebooks/colab_run.ipynb` ya incluye: instrucción de activar runtime
+GPU, celda opcional de `%pip install cuml-cu12`, y la nota de que cuML
+puede dar números ligeramente distintos a sklearn/CPU (no es un bug).
+
+**Sigue sin correrse la corrida completa** — eso solo se puede verificar
+de verdad en un runtime con GPU real, que esta máquina no tiene. Queda
+lista para que se lance desde el notebook en Colab (celda de `leakage`,
+sección 6). El resto de este documento (tareas 1-3 originales) se dejó
+tal cual quedó cuando se detectó el bloqueo, como registro.
+
 ## Tarea 1 — Fix aplicado
 
 Sí, tal cual el brief, en ambos archivos:
