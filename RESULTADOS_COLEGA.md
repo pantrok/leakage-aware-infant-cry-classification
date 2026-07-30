@@ -350,6 +350,6 @@ No hay binario/E de Colab con qué comparar (se cortó ahí), así que esa combi
 
 ## Commit
 
-- Hash del commit: ver mensaje de confirmación tras el commit (tarea pendiente de completar en este mismo turno — el archivo se generó antes de commitear).
-- Confirmación de que no hay menciones de IA en el diff ni en los mensajes de commit: pendiente de verificar en el momento del commit.
-- Rama: pendiente de confirmar con el usuario antes de hacer push (ver `Qué NO hacer` del brief — no se hace push directo a `main` sin permiso explícito).
+- Hash del commit: `4136ce7593849a6a408781589ab8b5a7be280017`, autor `rikrdo-ulc <rikrdo.ulc@gmail.com>`, sobre `578e873` (el HEAD original al clonar). Incluye `results/leakage_results.csv`, `results/leakage_stats.csv`, `results/leakage_plots/` (con los 2 PNG obsoletos borrados y 1 nuevo) y este mismo `RESULTADOS_COLEGA.md`.
+- Confirmación de que no hay menciones de IA en el diff ni en los mensajes de commit: verificado con `git show HEAD | grep -iE "claude|anthropic|ai-generated|ai-assisted|co-authored"` — ninguna coincidencia.
+- Rama: `main` (local). **No se ha hecho push** — está pendiente de confirmación explícita antes de subir nada a un remoto, y de si el destino debería ser una rama nueva o `main` directo.
