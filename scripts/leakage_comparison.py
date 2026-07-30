@@ -18,9 +18,9 @@ la inflación de métricas por fuga de datos (data leakage) en la literatura:
 Los grupos se detectan automáticamente desde los nombres de archivo:
   esquema confirmado de Baby Chillanto, nombre de 10 dígitos PPPPSSSCCC
   (PPPP = ID de grabación, SSS = contador de segmento, CCC = código de
-  clase) -- ver _recording_id() y DIAGNOSTICO_RECORDING_ID.md para la
-  evidencia. Fallback a la heurística de sufijo con separador para
-  nombres que no matcheen ese esquema.
+  clase) -- ver _recording_id() para el detalle. Fallback a la
+  heurística de sufijo con separador para nombres que no matcheen ese
+  esquema.
 
 Para cada condición evalúa:
   - Clasificación MULTICLASE : 5 clases originales
@@ -154,11 +154,11 @@ def _recording_id(filepath: str) -> str:
     """
     Extrae el ID de grabación desde el nombre de archivo.
 
-    Esquema confirmado para Baby Chillanto (ver DIAGNOSTICO_RECORDING_ID.md,
-    validado con evidencia dura: logs de procesamiento de 2002 encontrados
-    en Data/1s_deaf/, coincidencia exacta línea-por-línea/archivo-por-archivo
-    para los 6 prefijos observados en esa clase): nombre de archivo de 10
-    dígitos PPPPSSSCCC, donde:
+    Esquema confirmado para Baby Chillanto (validado contra logs de
+    procesamiento de 2002 encontrados en el propio dataset: coincidencia
+    exacta línea-por-línea/archivo-por-archivo entre el número de
+    segmentos por grabación y el ID de 4 dígitos): nombre de archivo de
+    10 dígitos PPPPSSSCCC, donde:
       PPPP = ID de grabación (4 dígitos)
       SSS  = contador de segmento dentro de la grabación (3 dígitos,
              reinicia en 001 por cada grabación nueva)

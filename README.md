@@ -31,7 +31,7 @@ protocols:
 
 ```
 ├── src/            shared feature-extraction / preprocessing / classifier modules
-├── scripts/        the three entry points (also runnable standalone)
+├── scripts/        the three entry points (also runnable standalone) + count_recordings.py
 ├── main.py         single dispatcher: python main.py {multiclass,binary,leakage}
 ├── tests/          unit tests for the leakage-comparison script
 ├── results/        CSV/PNG outputs cited in the paper (copied as-is, not regenerated)
@@ -64,8 +64,15 @@ Original references for the database:
 pip install -r requirements.txt
 ```
 
-Requires Python ≥ 3.9. GPU acceleration (`cuml-cu12`, RAPIDS) is optional and
-only speeds up SVM/kNN — the scikit-learn/CPU fallback in
+Requires Python ≥ 3.9. GPU acceleration is optional:
+
+```bash
+pip install --extra-index-url=https://pypi.nvidia.com cuml-cu12
+```
+
+speeds up SVM/kNN/RandomForest via cuML (Linux/WSL2 only, no native Windows
+build); PyTorch+CUDA accelerates the MLP automatically if available, no
+extra install needed. The scikit-learn/CPU fallback in
 [`src/gpu_classifiers.py`](src/gpu_classifiers.py) is what reproduces the
 exact numbers reported in the paper; see that module's docstring for details.
 
@@ -92,6 +99,10 @@ python scripts/leakage_comparison.py --data_dir data/dataset ...
 No local GPU? See [`notebooks/colab_run.ipynb`](notebooks/colab_run.ipynb)
 for the recommended way to run this from Google Colab with the dataset on
 Google Drive.
+
+Before a full `leakage` run, `python scripts/count_recordings.py
+--data_dir data/dataset` is a cheap sanity check that the recording-level
+grouping used by the `G-1s` condition is working (should print `M = 73`).
 
 ## License
 
